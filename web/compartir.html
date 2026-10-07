@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compartir Archivos</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --fg:#1b1d21; --muted:#6b7280; --accent:#4f46e5; --border:#e5e7eb; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg:#111317; --card:#1a1d23; --fg:#e8eaee; --muted:#9aa1ad; --accent:#818cf8; --border:#2a2e36; }
+  }
+  :root[data-theme="dark"] { --bg:#111317; --card:#1a1d23; --fg:#e8eaee; --muted:#9aa1ad; --accent:#818cf8; --border:#2a2e36; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 system-ui, sans-serif; padding:24px 16px; }
+  main { max-width:640px; margin:0 auto; display:grid; gap:16px; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px; }
+  h1 { margin:0; font-size:1.5rem; }
+  p { margin:.25rem 0; color:var(--muted); }
+  button { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:10px 16px; font-size:1rem; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:default; }
+  input[type=text] { width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background:var(--bg); color:var(--fg); font-size:1rem; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .row input { flex:1; min-width:0; }
+  #drop { border:2px dashed var(--border); border-radius:12px; padding:32px 16px; text-align:center; cursor:pointer; }
+  #drop.over { border-color:var(--accent); }
+  .item { padding:8px 0; border-top:1px solid var(--border); word-break:break-word; }
+  .item:first-child { border-top:0; }
+  progress { width:100%; height:8px; }
+  a { color:var(--accent); }
+  #status { font-weight:600; }
+</style>
+</head>
+<body>
+<main>
+  <div>
+    <h1>Compartir archivos</h1>
+    <p>Directo entre dos navegadores (P2P). Los archivos no pasan por ningún servidor ni tienen límite de tamaño.</p>
+  </div>
+
+  <section class="card" id="setup">
+    <p id="status">Conectando…</p>
+    <div class="row" id="linkRow" hidden>
+      <input type="text" id="link" readonly>
+      <button id="copy">Copiar enlace</button>
+    </div>
+    <p id="hint" hidden>Envíale este enlace a tu amigo. Mantén esta pestaña abierta.</p>
+  </section>
+
+  <section class="card" id="share" hidden>
+    <label id="drop">Arrastra archivos aquí o toca para elegir
+      <input type="file" id="file" multiple hidden>
+    </label>
+    <div class="row" style="margin-top:12px">
+      <input type="text" id="msg" placeholder="Mensaje o enlace…">
+      <button id="send">Enviar</button>
+    </div>
+  </section>
+
+  <section class="card"><div id="log"><p>Aquí aparecerá lo que se comparta.</p></div></section>
+</main>
+
+<script>
+const CHUNK = 64 * 1024;
+const $ = id => document.getElementById(id);
+const roomFromUrl = new URLSearchParams(location.search).get('sala');
+let conn = null;
+const incoming = {};
+
+const peer = new Peer();
+peer.on('open', id => {
+  if (roomFromUrl) {
+    $('status').textContent = 'Uniéndose a la sala…';
+    setup(peer.connect(roomFromUrl, { reliable: true }));
+  } else {
+    const url = location.origin + location.pathname + '?sala=' + id;
+    $('link').value = url;
+    $('linkRow').hidden = $('hint').hidden = false;
+    $('status').textContent = 'Esperando a tu amigo…';
+  }
+});
+peer.on('connection', c => { if (!conn) setup(c); else c.close(); });
+peer.on('error', e => { $('status').textContent = 'Error: ' + e.type; });
+
+$('copy').onclick = () => navigator.clipboard?.writeText($('link').value).then(() => $('copy').textContent = '¡Copiado!');
+
+function setup(c) {
+  conn = c;
+  c.on('open', () => {
+    $('status').textContent = '✅ Conectado';
+    $('linkRow').hidden = $('hint').hidden = true;
+    $('share').hidden = false;
+    $('log').innerHTML = '';
+  });
+  c.on('data', onData);
+  c.on('close', () => { $('status').textContent = '❌ Desconectado'; $('share').hidden = true; conn = null; });
+}
+
+function addItem(html) {
+  const d = document.createElement('div');
+  d.className = 'item'; d.innerHTML = html;
+  $('log').prepend(d); return d;
+}
+const esc = s => String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+const fmt = n => n > 1e9 ? (n/1e9).toFixed(2)+' GB' : n > 1e6 ? (n/1e6).toFixed(1)+' MB' : Math.ceil(n/1e3)+' KB';
+const linkify = s => esc(s).replace(/https?:\/\/[^\s<]+/g, u => `<a href="${u}" target="_blank" rel="noopener">${u}</a>`);
+
+function onData(d) {
+  if (d.t === 'msg') addItem('<b>Amigo:</b> ' + linkify(d.text));
+  else if (d.t === 'meta') {
+    const el = addItem(`📥 ${esc(d.name)} (${fmt(d.size)})<progress max="${d.size}" value="0"></progress>`);
+    incoming[d.id] = { ...d, parts: [], got: 0, el };
+  } else if (d.t === 'chunk') {
+    const f = incoming[d.id]; if (!f) return;
+    f.parts.push(d.data); f.got += d.data.byteLength;
+    f.el.querySelector('progress').value = f.got;
+    if (f.got >= f.size) {
+      const url = URL.createObjectURL(new Blob(f.parts, { type: f.mime }));
+      f.el.innerHTML = `📥 <a href="${url}" download="${esc(f.name)}">${esc(f.name)}</a> (${fmt(f.size)}) — toca para guardar`;
+      delete incoming[d.id];
+    }
+  }
+}
+
+function waitDrain() {
+  const dc = conn.dataChannel;
+  if (dc.bufferedAmount < 8 * CHUNK) return Promise.resolve();
+  return new Promise(r => {
+    dc.bufferedAmountLowThreshold = 2 * CHUNK;
+    dc.addEventListener('bufferedamountlow', r, { once: true });
+  });
+}
+
+async function sendFile(file) {
+  const id = Math.random().toString(36).slice(2);
+  const el = addItem(`📤 ${esc(file.name)} (${fmt(file.size)})<progress max="${file.size}" value="0"></progress>`);
+  conn.send({ t: 'meta', id, name: file.name, size: file.size, mime: file.type });
+  for (let off = 0; off < file.size; off += CHUNK) {
+    if (!conn) { el.append(' — cancelado'); return; }
+    await waitDrain();
+    conn.send({ t: 'chunk', id, data: await file.slice(off, off + CHUNK).arrayBuffer() });
+    el.querySelector('progress').value = off + CHUNK;
+  }
+  el.innerHTML = `📤 ${esc(file.name)} (${fmt(file.size)}) — enviado ✓`;
+}
+
+async function sendFiles(files) { for (const f of files) await sendFile(f); }
+
+$('file').onchange = e => { sendFiles([...e.target.files]); e.target.value = ''; };
+const drop = $('drop');
+drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
+drop.ondragleave = () => drop.classList.remove('over');
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); sendFiles([...e.dataTransfer.files]); };
+
+function sendMsg() {
+  const text = $('msg').value.trim();
+  if (!text || !conn) return;
+  conn.send({ t: 'msg', text });
+  addItem('<b>Tú:</b> ' + linkify(text));
+  $('msg').value = '';
+}
+$('send').onclick = sendMsg;
+$('msg').onkeydown = e => { if (e.key === 'Enter') sendMsg(); };
+</script>
+</body>
+</html>
