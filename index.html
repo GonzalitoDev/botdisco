@@ -152,6 +152,20 @@ const esc = s => String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>
 const fmt = n => n > 1e9 ? (n/1e9).toFixed(2)+' GB' : n > 1e6 ? (n/1e6).toFixed(1)+' MB' : Math.ceil(n/1e3)+' KB';
 const linkify = s => esc(s).replace(/https?:\/\/[^\s<]+/g, u => `<a href="${u}" target="_blank" rel="noopener">${u}</a>`);
 
+// Muestra velocidad y tiempo restante (se actualiza como máximo 4 veces por segundo)
+function progress(el, start, done, total) {
+  el.querySelector('progress').value = done;
+  const now = performance.now();
+  if (now - (el._t || 0) < 250 && done < total) return;
+  el._t = now;
+  const speed = done / Math.max((now - start) / 1000, 0.001);
+  const left = (total - done) / Math.max(speed, 1);
+  let info = el.querySelector('.speed');
+  if (!info) { info = document.createElement('small'); info.className = 'speed'; info.style.color = 'var(--muted)'; el.append(info); }
+  info.textContent = `${fmt(speed)}/s · ${Math.round(done / total * 100) || 0}% · ` +
+    (left < 60 ? `${Math.ceil(left)} s` : `${Math.floor(left / 60)} min ${Math.ceil(left % 60)} s`) + ' restantes';
+}
+
 const RISKY_FILE = /\.(exe|msi|bat|cmd|scr|com|pif|vbs|vbe|js|jse|wsf|jar|apk|dmg|pkg|ps1|hta|lnk|iso|reg|docm|xlsm)$/i;
 
 function onData(d) {
@@ -161,11 +175,11 @@ function onData(d) {
   else if (d.t === 'meta' && typeof d.name === 'string' && Number.isSafeInteger(d.size) && d.size >= 0) {
     const name = d.name.replace(/[\\/:*?"<>|\x00-\x1f]/g, '_').slice(0, 200) || 'archivo';
     const el = addItem(`📥 ${esc(name)} (${fmt(d.size)})<progress max="${d.size}" value="0"></progress>`);
-    incoming[d.id] = { name, size: d.size, parts: [], got: 0, el };
+    incoming[d.id] = { name, size: d.size, parts: [], got: 0, el, start: performance.now() };
   } else if (d.t === 'chunk' && d.data instanceof ArrayBuffer) {
     const f = incoming[d.id]; if (!f) return;
     f.parts.push(d.data); f.got += d.data.byteLength;
-    f.el.querySelector('progress').value = f.got;
+    progress(f.el, f.start, f.got, f.size);
     if (f.got >= f.size) {
       // octet-stream: el navegador solo lo descarga, nunca lo abre como página
       const url = URL.createObjectURL(new Blob(f.parts, { type: 'application/octet-stream' }));
@@ -189,12 +203,13 @@ function waitDrain() {
 async function sendFile(file) {
   const id = Math.random().toString(36).slice(2);
   const el = addItem(`📤 ${esc(file.name)} (${fmt(file.size)})<progress max="${file.size}" value="0"></progress>`);
+  const start = performance.now();
   conn.send({ t: 'meta', id, name: file.name, size: file.size, mime: file.type });
   for (let off = 0; off < file.size; off += CHUNK) {
     if (!conn) { el.append(' — cancelado'); return; }
     await waitDrain();
     conn.send({ t: 'chunk', id, data: await file.slice(off, off + CHUNK).arrayBuffer() });
-    el.querySelector('progress').value = off + CHUNK;
+    progress(el, start, Math.min(off + CHUNK, file.size), file.size);
   }
   el.innerHTML = `📤 ${esc(file.name)} (${fmt(file.size)}) — enviado ✓`;
 }
