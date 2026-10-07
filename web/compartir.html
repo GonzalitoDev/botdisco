@@ -285,6 +285,35 @@ $('bmFile').onchange = async e => {
   if (f) showBookmarks(parseBookmarks(await f.text(), location.href), f.name);
 };
 
+// Colección inicial: sitios conocidos y confiables
+const PRESET = {
+  'Herramientas': [
+    ['Google Drive', 'https://drive.google.com'], ['Google Traductor', 'https://translate.google.com'],
+    ['iLovePDF', 'https://www.ilovepdf.com'], ['Photopea (editor de fotos)', 'https://www.photopea.com'],
+    ['Remove.bg (quitar fondo)', 'https://www.remove.bg'], ['VirusTotal', 'https://www.virustotal.com'],
+  ],
+  'Programación': [
+    ['GitHub', 'https://github.com'], ['MDN Web Docs', 'https://developer.mozilla.org/es/'],
+    ['Stack Overflow en español', 'https://es.stackoverflow.com'], ['freeCodeCamp', 'https://www.freecodecamp.org/espanol/'],
+    ['Discord Developer Portal', 'https://discord.com/developers/applications'], ['Python Docs', 'https://docs.python.org/es/3/'],
+  ],
+  'Aprender': [
+    ['Wikipedia', 'https://es.wikipedia.org'], ['Khan Academy', 'https://es.khanacademy.org'],
+    ['Duolingo', 'https://www.duolingo.com'], ['Coursera', 'https://www.coursera.org'],
+  ],
+  'Entretenimiento': [
+    ['YouTube', 'https://www.youtube.com'], ['Twitch', 'https://www.twitch.tv'],
+    ['Spotify', 'https://open.spotify.com'], ['Steam', 'https://store.steampowered.com'],
+    ['Epic Games (juegos gratis)', 'https://store.epicgames.com/es-ES/free-games'], ['itch.io', 'https://itch.io'],
+  ],
+  'Diseño y recursos gratis': [
+    ['Canva', 'https://www.canva.com'], ['Unsplash (fotos)', 'https://unsplash.com'],
+    ['Google Fonts', 'https://fonts.google.com'], ['Coolors (paletas)', 'https://coolors.co'],
+  ],
+};
+showBookmarks(Object.entries(PRESET).flatMap(([folder, items]) =>
+  items.map(([title, url]) => ({ title, url, folder }))), 'la colección recomendada');
+
 $('bmAll').onchange = e => $('bmList').querySelectorAll('input').forEach(c => c.checked = e.target.checked && !bookmarks[c.dataset.i].risk);
 
 function bookmarksFile() {
