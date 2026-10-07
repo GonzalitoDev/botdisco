@@ -57,6 +57,25 @@
     </div>
   </section>
 
+  <section class="card">
+    <b>Importar marcadores desde una página</b>
+    <p>Pega la dirección de una página con enlaces (por ejemplo un bookmarks.html publicado) o sube el archivo.</p>
+    <div class="row" style="margin-top:8px">
+      <input type="text" id="bmUrl" placeholder="https://…">
+      <button id="bmFetch">Extraer</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <input type="file" id="bmFile" accept=".html,.htm">
+    </div>
+    <p id="bmStatus"></p>
+    <div id="bmActions" class="row" hidden>
+      <label><input type="checkbox" id="bmAll" checked> Todos</label>
+      <button id="bmDownload">Descargar para Chrome</button>
+      <button id="bmSend" disabled>Enviar a mi amigo</button>
+    </div>
+    <div id="bmList" style="max-height:320px;overflow:auto;margin-top:8px"></div>
+  </section>
+
   <section class="card"><div id="log"><p>Aquí aparecerá lo que se comparta.</p></div></section>
 </main>
 
@@ -90,10 +109,11 @@ function setup(c) {
     $('status').textContent = '✅ Conectado';
     $('linkRow').hidden = $('hint').hidden = true;
     $('share').hidden = false;
+    $('bmSend').disabled = false;
     $('log').innerHTML = '';
   });
   c.on('data', onData);
-  c.on('close', () => { $('status').textContent = '❌ Desconectado'; $('share').hidden = true; conn = null; });
+  c.on('close', () => { $('status').textContent = '❌ Desconectado'; $('share').hidden = true; $('bmSend').disabled = true; conn = null; });
 }
 
 function addItem(html) {
@@ -159,6 +179,81 @@ function sendMsg() {
   addItem('<b>Tú:</b> ' + linkify(text));
   $('msg').value = '';
 }
+// --- Importar marcadores ---
+let bookmarks = [];
+
+function parseBookmarks(html, base) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const seen = new Set(), out = [];
+  for (const a of doc.querySelectorAll('a[href]')) {
+    let url;
+    try { url = new URL(a.getAttribute('href'), base).href; } catch { continue; }
+    if (!/^https?:/.test(url) || seen.has(url)) continue;
+    seen.add(url);
+    // Carpeta: el <H3> más cercano del formato de marcadores de Chrome/Netscape
+    const dl = a.closest('dl');
+    const h3 = dl?.previousElementSibling?.tagName === 'H3' ? dl.previousElementSibling
+             : dl?.parentElement?.querySelector(':scope > h3');
+    out.push({ title: a.textContent.trim() || url, url, folder: h3?.textContent.trim() || '' });
+  }
+  return out;
+}
+
+function showBookmarks(list, origen) {
+  bookmarks = list;
+  $('bmStatus').textContent = list.length ? `${list.length} enlaces encontrados en ${origen}` : 'No se encontraron enlaces.';
+  $('bmActions').hidden = !list.length;
+  $('bmSend').disabled = !conn;
+  $('bmList').innerHTML = list.map((b, i) =>
+    `<label class="item" style="display:block"><input type="checkbox" data-i="${i}" checked> ` +
+    `${b.folder ? `<small>[${esc(b.folder)}]</small> ` : ''}${esc(b.title)}<br><small style="color:var(--muted)">${esc(b.url)}</small></label>`
+  ).join('');
+}
+
+$('bmFetch').onclick = async () => {
+  let url = $('bmUrl').value.trim();
+  if (!url) return;
+  if (!/^https?:\/\//.test(url)) url = 'https://' + url;
+  $('bmStatus').textContent = 'Descargando…';
+  try {
+    // Proxy público para evitar el bloqueo CORS del navegador
+    const r = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(url));
+    if (!r.ok) throw new Error(r.status);
+    showBookmarks(parseBookmarks(await r.text(), url), url);
+  } catch (e) {
+    $('bmStatus').textContent = 'No se pudo descargar la página (' + e.message + '). Prueba guardándola y subiendo el archivo.';
+  }
+};
+
+$('bmFile').onchange = async e => {
+  const f = e.target.files[0];
+  if (f) showBookmarks(parseBookmarks(await f.text(), location.href), f.name);
+};
+
+$('bmAll').onchange = e => $('bmList').querySelectorAll('input').forEach(c => c.checked = e.target.checked);
+
+function bookmarksFile() {
+  const chosen = [...$('bmList').querySelectorAll('input:checked')].map(c => bookmarks[c.dataset.i]);
+  const groups = {};
+  for (const b of chosen) (groups[b.folder || 'Importados'] ||= []).push(b);
+  const now = Math.floor(Date.now() / 1000);
+  let html = '<!DOCTYPE NETSCAPE-Bookmark-file-1>\n<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">\n<TITLE>Bookmarks</TITLE>\n<H1>Bookmarks</H1>\n<DL><p>\n';
+  for (const [folder, items] of Object.entries(groups)) {
+    html += `  <DT><H3 ADD_DATE="${now}">${esc(folder)}</H3>\n  <DL><p>\n`;
+    for (const b of items) html += `    <DT><A HREF="${esc(b.url)}" ADD_DATE="${now}">${esc(b.title)}</A>\n`;
+    html += '  </DL><p>\n';
+  }
+  return new File([html + '</DL><p>\n'], 'marcadores.html', { type: 'text/html' });
+}
+
+$('bmDownload').onclick = () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(bookmarksFile());
+  a.download = 'marcadores.html';
+  a.click();
+};
+$('bmSend').onclick = () => conn && sendFile(bookmarksFile());
+
 $('send').onclick = sendMsg;
 $('msg').onkeydown = e => { if (e.key === 'Enter') sendMsg(); };
 </script>
