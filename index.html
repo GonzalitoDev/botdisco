@@ -59,7 +59,13 @@
 
   <section class="card">
     <b>Importar marcadores desde una página</b>
-    <p>Pega la dirección de una página con enlaces (por ejemplo un bookmarks.html publicado) o sube el archivo.</p>
+    <p>Busca colecciones de marcadores publicadas sobre un tema:</p>
+    <div class="row" style="margin-top:8px">
+      <input type="text" id="bmQuery" placeholder="Tema (ej: programación, diseño, películas)">
+      <button id="bmSearch">Buscar</button>
+    </div>
+    <div id="bmResults"></div>
+    <p style="margin-top:12px">O pega la dirección de una página con enlaces, o sube el archivo.</p>
     <div class="row" style="margin-top:8px">
       <input type="text" id="bmUrl" placeholder="https://…">
       <button id="bmFetch">Extraer</button>
@@ -201,14 +207,63 @@ function parseBookmarks(html, base) {
 
 function showBookmarks(list, origen) {
   bookmarks = list;
-  $('bmStatus').textContent = list.length ? `${list.length} enlaces encontrados en ${origen}` : 'No se encontraron enlaces.';
+  list.forEach(b => b.risk = riskReason(b.url));
+  const risky = list.filter(b => b.risk).length;
+  $('bmStatus').textContent = list.length
+    ? `${list.length} enlaces encontrados en ${origen}` + (risky ? ` — ${risky} sospechosos desmarcados ⚠️` : ' — ninguno sospechoso')
+    : 'No se encontraron enlaces.';
   $('bmActions').hidden = !list.length;
   $('bmSend').disabled = !conn;
   $('bmList').innerHTML = list.map((b, i) =>
-    `<label class="item" style="display:block"><input type="checkbox" data-i="${i}" checked> ` +
-    `${b.folder ? `<small>[${esc(b.folder)}]</small> ` : ''}${esc(b.title)}<br><small style="color:var(--muted)">${esc(b.url)}</small></label>`
+    `<label class="item" style="display:block"><input type="checkbox" data-i="${i}" ${b.risk ? '' : 'checked'}> ` +
+    `${b.folder ? `<small>[${esc(b.folder)}]</small> ` : ''}${esc(b.title)}` +
+    `${b.risk ? ` <small style="color:#dc2626">⚠️ ${esc(b.risk)}</small>` : ''}` +
+    `<br><small style="color:var(--muted)">${esc(b.url)}</small> ` +
+    `<small><a href="https://www.virustotal.com/gui/search/${encodeURIComponent(encodeURIComponent(b.url))}" target="_blank" rel="noopener">revisar en VirusTotal</a></small></label>`
   ).join('');
 }
+
+// Filtro de seguridad: descarta enlaces que suelen ser peligrosos
+const RISKY_EXT = /\.(exe|msi|bat|cmd|scr|com|pif|vbs|js|jar|apk|dmg|pkg|ps1|hta|lnk|iso|zip|rar|7z)(\?|#|$)/i;
+const SHORTENERS = /^(bit\.ly|tinyurl\.com|t\.co|goo\.gl|is\.gd|cutt\.ly|ow\.ly|adf\.ly|shorte\.st|linkvertise\.com)$/i;
+function riskReason(url) {
+  const u = new URL(url);
+  if (u.protocol !== 'https:') return 'sin HTTPS';
+  if (RISKY_EXT.test(u.pathname)) return 'descarga de programa o archivo comprimido';
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(u.hostname)) return 'dirección IP en vez de dominio';
+  if (SHORTENERS.test(u.hostname)) return 'acortador que oculta el destino';
+  if (u.hostname.startsWith('xn--') || u.hostname.includes('.xn--')) return 'dominio con caracteres engañosos';
+  return '';
+}
+
+$('bmSearch').onclick = async () => {
+  const tema = $('bmQuery').value.trim();
+  if (!tema) return;
+  const q = `"bookmarks" "${tema}" (filetype:html OR inurl:bookmarks OR inurl:awesome)`;
+  $('bmResults').innerHTML = '<p>Buscando…</p>';
+  try {
+    const ddg = 'https://html.duckduckgo.com/html/?q=' + encodeURIComponent(`${tema} bookmarks.html OR "awesome ${tema}"`);
+    const r = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(ddg));
+    if (!r.ok) throw new Error(r.status);
+    const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
+    const results = [...doc.querySelectorAll('a.result__a')].map(a => {
+      let href = a.getAttribute('href');
+      const m = href.match(/[?&]uddg=([^&]+)/);
+      if (m) href = decodeURIComponent(m[1]);
+      return { title: a.textContent.trim(), url: href };
+    }).filter(x => /^https:/.test(x.url) && !riskReason(x.url)).slice(0, 10);
+    if (!results.length) throw new Error('sin resultados');
+    $('bmResults').innerHTML = results.map((x, i) =>
+      `<div class="item"><a href="#" data-u="${esc(x.url)}">${esc(x.title)}</a><br><small style="color:var(--muted)">${esc(x.url)}</small></div>`).join('');
+    $('bmResults').querySelectorAll('a[data-u]').forEach(a => a.onclick = e => {
+      e.preventDefault(); $('bmUrl').value = a.dataset.u; $('bmFetch').click();
+    });
+  } catch (e) {
+    const g = 'https://www.google.com/search?q=' + encodeURIComponent(q);
+    $('bmResults').innerHTML = `<p>La búsqueda automática no respondió (${esc(e.message)}). ` +
+      `<a href="${g}" target="_blank" rel="noopener">Buscar en Google</a> y pega aquí abajo la dirección que elijas.</p>`;
+  }
+};
 
 $('bmFetch').onclick = async () => {
   let url = $('bmUrl').value.trim();
@@ -230,7 +285,7 @@ $('bmFile').onchange = async e => {
   if (f) showBookmarks(parseBookmarks(await f.text(), location.href), f.name);
 };
 
-$('bmAll').onchange = e => $('bmList').querySelectorAll('input').forEach(c => c.checked = e.target.checked);
+$('bmAll').onchange = e => $('bmList').querySelectorAll('input').forEach(c => c.checked = e.target.checked && !bookmarks[c.dataset.i].risk);
 
 function bookmarksFile() {
   const chosen = [...$('bmList').querySelectorAll('input:checked')].map(c => bookmarks[c.dataset.i]);
