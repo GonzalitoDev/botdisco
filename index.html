@@ -4,7 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Compartir Archivos</title>
-<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://unpkg.com/peerjs@1.5.4/; style-src 'unsafe-inline'; img-src data: blob:; connect-src https://0.peerjs.com wss://0.peerjs.com https://api.allorigins.win; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js" integrity="sha384-nlUQ8ZqCbvStErob+biJNzSgltf6urV3VGqhfIfzhmg9RXmpeRm76ELw0pYnKlTR" crossorigin="anonymous"></script>
 <style>
   :root { --bg:#f6f7f9; --card:#fff; --fg:#1b1d21; --muted:#6b7280; --accent:#4f46e5; --border:#e5e7eb; }
   @media (prefers-color-scheme: dark) {
@@ -90,6 +92,18 @@
   </section>
 
   <section class="card"><div id="log"><p>Aquí aparecerá lo que se comparta.</p></div></section>
+
+  <section class="card">
+    <details>
+      <summary><b>Aviso legal, privacidad y uso responsable</b></summary>
+      <p><b>Qué hace la página.</b> Conecta dos navegadores directamente (P2P con WebRTC). Los archivos y mensajes viajan cifrados (DTLS) de un navegador al otro y no se guardan en ningún servidor. Al cerrar la pestaña, desaparecen.</p>
+      <p><b>Datos y terceros.</b> Esta página no usa cookies, no tiene analíticas ni registra datos. Para funcionar se conecta a servicios de terceros que pueden ver tu dirección IP: el servidor público de PeerJS (para que los navegadores se encuentren), unpkg.com (para cargar la librería), y, solo si usas la búsqueda o la extracción por dirección, api.allorigins.win y DuckDuckGo. Tu amigo también verá tu IP, como en cualquier conexión directa.</p>
+      <p><b>Tu responsabilidad.</b> Eres responsable de lo que compartes. No compartas contenido protegido por derechos de autor sin permiso, contenido ilegal, malware ni datos personales de otras personas sin su consentimiento. Abre solo archivos de personas en las que confíes.</p>
+      <p><b>Marcadores.</b> Las colecciones incluidas enlazan a sitios de terceros sin relación con esta página. Sus contenidos, términos y privacidad dependen de cada sitio. El filtro de enlaces sospechosos ayuda, pero no garantiza que un sitio sea seguro.</p>
+      <p><b>Ciberseguridad.</b> Los recursos de ciberseguridad son para aprender y defender. Usar herramientas de pentest o acceder a sistemas, redes o cuentas sin autorización expresa de su dueño es un delito en la mayoría de los países. Practica solo en tus equipos o en laboratorios autorizados.</p>
+      <p><b>Sin garantías.</b> La página se ofrece «tal cual», sin garantía de ningún tipo. Su uso es bajo tu propia responsabilidad.</p>
+    </details>
+  </section>
 </main>
 
 <script>
@@ -138,18 +152,26 @@ const esc = s => String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>
 const fmt = n => n > 1e9 ? (n/1e9).toFixed(2)+' GB' : n > 1e6 ? (n/1e6).toFixed(1)+' MB' : Math.ceil(n/1e3)+' KB';
 const linkify = s => esc(s).replace(/https?:\/\/[^\s<]+/g, u => `<a href="${u}" target="_blank" rel="noopener">${u}</a>`);
 
+const RISKY_FILE = /\.(exe|msi|bat|cmd|scr|com|pif|vbs|vbe|js|jse|wsf|jar|apk|dmg|pkg|ps1|hta|lnk|iso|reg|docm|xlsm)$/i;
+
 function onData(d) {
-  if (d.t === 'msg') addItem('<b>Amigo:</b> ' + linkify(d.text));
-  else if (d.t === 'meta') {
-    const el = addItem(`📥 ${esc(d.name)} (${fmt(d.size)})<progress max="${d.size}" value="0"></progress>`);
-    incoming[d.id] = { ...d, parts: [], got: 0, el };
-  } else if (d.t === 'chunk') {
+  // Ignora cualquier dato con forma inesperada
+  if (!d || typeof d !== 'object' || typeof d.id !== 'string' && d.t !== 'msg') return;
+  if (d.t === 'msg' && typeof d.text === 'string') addItem('<b>Amigo:</b> ' + linkify(d.text.slice(0, 2000)));
+  else if (d.t === 'meta' && typeof d.name === 'string' && Number.isSafeInteger(d.size) && d.size >= 0) {
+    const name = d.name.replace(/[\\/:*?"<>|\x00-\x1f]/g, '_').slice(0, 200) || 'archivo';
+    const el = addItem(`📥 ${esc(name)} (${fmt(d.size)})<progress max="${d.size}" value="0"></progress>`);
+    incoming[d.id] = { name, size: d.size, parts: [], got: 0, el };
+  } else if (d.t === 'chunk' && d.data instanceof ArrayBuffer) {
     const f = incoming[d.id]; if (!f) return;
     f.parts.push(d.data); f.got += d.data.byteLength;
     f.el.querySelector('progress').value = f.got;
     if (f.got >= f.size) {
-      const url = URL.createObjectURL(new Blob(f.parts, { type: f.mime }));
-      f.el.innerHTML = `📥 <a href="${url}" download="${esc(f.name)}">${esc(f.name)}</a> (${fmt(f.size)}) — toca para guardar`;
+      // octet-stream: el navegador solo lo descarga, nunca lo abre como página
+      const url = URL.createObjectURL(new Blob(f.parts, { type: 'application/octet-stream' }));
+      const warn = RISKY_FILE.test(f.name)
+        ? ' <small style="color:#dc2626">⚠️ Es un programa o archivo que puede ejecutar código. Ábrelo solo si confías en quien lo envió y analízalo antes en VirusTotal.</small>' : '';
+      f.el.innerHTML = `📥 <a href="${url}" download="${esc(f.name)}">${esc(f.name)}</a> (${fmt(f.size)}) — toca para guardar${warn}`;
       delete incoming[d.id];
     }
   }
@@ -186,7 +208,7 @@ drop.ondragleave = () => drop.classList.remove('over');
 drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); sendFiles([...e.dataTransfer.files]); };
 
 function sendMsg() {
-  const text = $('msg').value.trim();
+  const text = $('msg').value.trim().slice(0, 2000);
   if (!text || !conn) return;
   conn.send({ t: 'msg', text });
   addItem('<b>Tú:</b> ' + linkify(text));
