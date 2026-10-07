@@ -59,7 +59,14 @@
 
   <section class="card">
     <b>Importar marcadores desde una página</b>
-    <p>Busca colecciones de marcadores publicadas sobre un tema:</p>
+    <div class="row" style="margin-top:8px">
+      <span>Colección incluida:</span>
+      <select id="bmPreset" style="padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:1rem">
+        <option value="general">General</option>
+        <option value="cyber">Ciberseguridad</option>
+      </select>
+    </div>
+    <p style="margin-top:12px">Busca colecciones de marcadores publicadas sobre un tema:</p>
     <div class="row" style="margin-top:8px">
       <input type="text" id="bmQuery" placeholder="Tema (ej: programación, diseño, películas)">
       <button id="bmSearch">Buscar</button>
@@ -374,8 +381,170 @@ const PRESET = {
     ['Google Flights', 'https://www.google.com/travel/flights'], ['Booking', 'https://www.booking.com'], ['Airbnb', 'https://www.airbnb.com'],
   ],
 };
-showBookmarks(Object.entries(PRESET).flatMap(([folder, items]) =>
-  items.map(([title, url]) => ({ title, url, folder }))), 'la colección recomendada');
+const CYBER = {
+  'Aprender ciberseguridad': [
+    ['TryHackMe', 'https://tryhackme.com'], ['Hack The Box', 'https://www.hackthebox.com'], ['HTB Academy', 'https://academy.hackthebox.com'],
+    ['PortSwigger Web Security Academy', 'https://portswigger.net/web-security'], ['OverTheWire', 'https://overthewire.org/wargames/'],
+    ['picoCTF', 'https://picoctf.org'], ['Cybrary', 'https://www.cybrary.it'], ['SANS Cyber Aces', 'https://www.sans.org/cyberaces/'],
+    ['Professor Messer', 'https://www.professormesser.com'], ['Cisco Networking Academy', 'https://www.netacad.com'],
+    ['OpenSecurityTraining2', 'https://ost2.fyi'], ['pwn.college', 'https://pwn.college'], ['LetsDefend', 'https://letsdefend.io'],
+    ['Blue Team Labs Online', 'https://blueteamlabs.online'], ['CyberDefenders', 'https://cyberdefenders.org'],
+    ['Immersive Labs', 'https://www.immersivelabs.com'], ['RangeForce', 'https://www.rangeforce.com'],
+    ['Root-Me', 'https://www.root-me.org'], ['Hacker101', 'https://www.hacker101.com'], ['INCIBE Formación', 'https://www.incibe.es/formacion'],
+    ['Google Cybersecurity (Coursera)', 'https://www.coursera.org/professional-certificates/google-cybersecurity'],
+    ['Roadmap Cyber Security', 'https://roadmap.sh/cyber-security'], ['Hacksplaining', 'https://www.hacksplaining.com'],
+    ['Security Blue Team', 'https://www.securityblue.team'],
+  ],
+  'CTF y laboratorios': [
+    ['CTFtime', 'https://ctftime.org'], ['VulnHub', 'https://www.vulnhub.com'], ['Proving Grounds (OffSec)', 'https://www.offsec.com/labs/'],
+    ['CryptoHack', 'https://cryptohack.org'], ['Microcorruption', 'https://microcorruption.com'], ['Exploit Education', 'https://exploit.education'],
+    ['ROP Emporium', 'https://ropemporium.com'], ['crackmes.one', 'https://crackmes.one'], ['Pwnable.kr', 'https://pwnable.kr'],
+    ['pwnable.tw', 'https://pwnable.tw'], ['HackThisSite', 'https://www.hackthissite.org'], ['Damn Vulnerable Web App', 'https://github.com/digininja/DVWA'],
+    ['OWASP Juice Shop', 'https://owasp.org/www-project-juice-shop/'], ['WebGoat', 'https://owasp.org/www-project-webgoat/'],
+    ['CloudGoat', 'https://github.com/RhinoSecurityLabs/cloudgoat'],
+    ['Attack-Defense (INE)', 'https://attackdefense.com'], ['CTF101', 'https://ctf101.org'], ['Google CTF', 'https://capturetheflag.withgoogle.com'],
+    ['DEF CON CTF', 'https://defcon.org/html/links/dc-ctf.html'],
+  ],
+  'Marcos, estándares y guías': [
+    ['MITRE ATT&CK', 'https://attack.mitre.org'], ['MITRE D3FEND', 'https://d3fend.mitre.org'], ['MITRE CWE', 'https://cwe.mitre.org'],
+    ['MITRE CAPEC', 'https://capec.mitre.org'], ['OWASP', 'https://owasp.org'], ['OWASP Top 10', 'https://owasp.org/www-project-top-ten/'],
+    ['OWASP Cheat Sheets', 'https://cheatsheetseries.owasp.org'], ['OWASP ASVS', 'https://owasp.org/www-project-application-security-verification-standard/'],
+    ['OWASP Testing Guide', 'https://owasp.org/www-project-web-security-testing-guide/'], ['NIST Cybersecurity Framework', 'https://www.nist.gov/cyberframework'],
+    ['NIST CSRC', 'https://csrc.nist.gov'], ['CIS Controls', 'https://www.cisecurity.org/controls'], ['CIS Benchmarks', 'https://www.cisecurity.org/cis-benchmarks'],
+    ['ISO 27001', 'https://www.iso.org/standard/27001'], ['PCI Security Standards', 'https://www.pcisecuritystandards.org'],
+    ['ENISA', 'https://www.enisa.europa.eu'], ['CISA', 'https://www.cisa.gov'], ['INCIBE', 'https://www.incibe.es'],
+    ['CCN-CERT', 'https://www.ccn-cert.cni.es'], ['NCSC (Reino Unido)', 'https://www.ncsc.gov.uk'], ['Cyber Kill Chain', 'https://www.lockheedmartin.com/en-us/capabilities/cyber/cyber-kill-chain.html'],
+  ],
+  'Vulnerabilidades y exploits': [
+    ['CVE', 'https://www.cve.org'], ['NVD (NIST)', 'https://nvd.nist.gov'], ['CISA KEV', 'https://www.cisa.gov/known-exploited-vulnerabilities-catalog'],
+    ['Exploit-DB', 'https://www.exploit-db.com'], ['GitHub Advisory Database', 'https://github.com/advisories'], ['OSV', 'https://osv.dev'],
+    ['Snyk Vulnerability DB', 'https://security.snyk.io'], ['VulnCheck', 'https://vulncheck.com'], ['CVE Details', 'https://www.cvedetails.com'],
+    ['FIRST EPSS', 'https://www.first.org/epss/'], ['FIRST CVSS Calculator', 'https://www.first.org/cvss/calculator/3.1'],
+    ['Packet Storm', 'https://packetstormsecurity.com'], ['Vulners', 'https://vulners.com'], ['Microsoft Security Update Guide', 'https://msrc.microsoft.com/update-guide'],
+    ['HackerOne Hacktivity', 'https://hackerone.com/hacktivity'],
+  ],
+  'Bug bounty': [
+    ['HackerOne', 'https://www.hackerone.com'], ['Bugcrowd', 'https://www.bugcrowd.com'], ['Intigriti', 'https://www.intigriti.com'],
+    ['YesWeHack', 'https://www.yeswehack.com'], ['Synack', 'https://www.synack.com'], ['Open Bug Bounty', 'https://www.openbugbounty.org'],
+    ['Google Bug Hunters', 'https://bughunters.google.com'], ['Microsoft Bounty', 'https://www.microsoft.com/en-us/msrc/bounty'],
+    ['Meta Bug Bounty', 'https://bugbounty.meta.com'], ['Pentester Land Writeups', 'https://pentester.land/writeups/'],
+  ],
+  'Herramientas de pentest (sitios oficiales)': [
+    ['Kali Linux', 'https://www.kali.org'], ['Parrot OS', 'https://parrotsec.org'], ['Nmap', 'https://nmap.org'], ['Wireshark', 'https://www.wireshark.org'],
+    ['Burp Suite', 'https://portswigger.net/burp'], ['OWASP ZAP', 'https://www.zaproxy.org'], ['Metasploit', 'https://www.metasploit.com'],
+    ['sqlmap', 'https://sqlmap.org'], ['Hashcat', 'https://hashcat.net/hashcat/'], ['John the Ripper', 'https://www.openwall.com/john/'],
+    ['Nuclei', 'https://github.com/projectdiscovery/nuclei'], ['ffuf', 'https://github.com/ffuf/ffuf'], ['Gobuster', 'https://github.com/OJ/gobuster'],
+    ['Nikto', 'https://github.com/sullo/nikto'], ['Aircrack-ng', 'https://www.aircrack-ng.org'], ['BloodHound', 'https://github.com/SpecterOps/BloodHound'],
+    ['Impacket', 'https://github.com/fortra/impacket'], ['NetExec', 'https://github.com/Pennyw0rth/NetExec'], ['Responder', 'https://github.com/lgandx/Responder'],
+    ['Amass', 'https://github.com/owasp-amass/amass'], ['Subfinder', 'https://github.com/projectdiscovery/subfinder'], ['Caido', 'https://caido.io'],
+    ['mitmproxy', 'https://mitmproxy.org'], ['Bettercap', 'https://www.bettercap.org'], ['Sliver C2', 'https://github.com/BishopFox/sliver'],
+  ],
+  'Referencias y chuletas': [
+    ['HackTricks', 'https://book.hacktricks.wiki'], ['PayloadsAllTheThings', 'https://github.com/swisskyrepo/PayloadsAllTheThings'],
+    ['GTFOBins', 'https://gtfobins.github.io'], ['LOLBAS', 'https://lolbas-project.github.io'], ['SecLists', 'https://github.com/danielmiessler/SecLists'],
+    ['RevShells', 'https://www.revshells.com'], ['CyberChef', 'https://gchq.github.io/CyberChef/'], ['explainshell', 'https://explainshell.com'],
+    ['The Hacker Recipes', 'https://www.thehacker.recipes'], ['Red Team Notes (ired.team)', 'https://www.ired.team'],
+    ['Awesome Security', 'https://github.com/sbilly/awesome-security'], ['Awesome Pentest', 'https://github.com/enaqx/awesome-pentest'],
+    ['Awesome Hacking', 'https://github.com/Hack-with-Github/Awesome-Hacking'], ['Awesome CTF', 'https://github.com/apsdehal/awesome-ctf'],
+    ['Awesome Incident Response', 'https://github.com/meirwah/awesome-incident-response'], ['Awesome Malware Analysis', 'https://github.com/rshipp/awesome-malware-analysis'],
+    ['Awesome Threat Intelligence', 'https://github.com/hslatman/awesome-threat-intelligence'], ['Awesome Cloud Security', 'https://github.com/4ndersonLin/awesome-cloud-security'],
+    ['CrackStation', 'https://crackstation.net'], ['dCode', 'https://www.dcode.fr'],
+  ],
+  'Análisis de malware y sandboxes': [
+    ['VirusTotal', 'https://www.virustotal.com'], ['ANY.RUN', 'https://any.run'], ['Hybrid Analysis', 'https://www.hybrid-analysis.com'],
+    ['Joe Sandbox', 'https://www.joesandbox.com'], ['Triage', 'https://tria.ge'], ['MalwareBazaar', 'https://bazaar.abuse.ch'],
+    ['URLhaus', 'https://urlhaus.abuse.ch'], ['ThreatFox', 'https://threatfox.abuse.ch'], ['Feodo Tracker', 'https://feodotracker.abuse.ch'],
+    ['urlscan.io', 'https://urlscan.io'], ['Malpedia', 'https://malpedia.caad.fkie.fraunhofer.de'], ['YARA', 'https://virustotal.github.io/yara/'],
+    ['YARA-Forge', 'https://yarahq.github.io'], ['CAPA', 'https://github.com/mandiant/capa'], ['REMnux', 'https://remnux.org'],
+    ['FLARE-VM', 'https://github.com/mandiant/flare-vm'], ['PE-bear', 'https://github.com/hasherezade/pe-bear'], ['Detect It Easy', 'https://github.com/horsicq/Detect-It-Easy'],
+  ],
+  'Ingeniería inversa': [
+    ['Ghidra', 'https://ghidra-sre.org'], ['IDA Free', 'https://hex-rays.com/ida-free'], ['Binary Ninja', 'https://binary.ninja'],
+    ['radare2', 'https://rada.re'], ['Cutter', 'https://cutter.re'], ['x64dbg', 'https://x64dbg.com'], ['GDB', 'https://www.sourceware.org/gdb/'],
+    ['pwndbg', 'https://github.com/pwndbg/pwndbg'], ['GEF', 'https://github.com/hugsy/gef'], ['pwntools', 'https://github.com/Gallopsled/pwntools'],
+    ['dnSpyEx', 'https://github.com/dnSpyEx/dnSpy'], ['JADX', 'https://github.com/skylot/jadx'], ['Frida', 'https://frida.re'],
+    ['Compiler Explorer', 'https://godbolt.org'], ['Reverse Engineering for Beginners', 'https://beginners.re'],
+  ],
+  'Defensa y blue team': [
+    ['Sigma', 'https://github.com/SigmaHQ/sigma'], ['Wazuh', 'https://wazuh.com'], ['Security Onion', 'https://securityonionsolutions.com'],
+    ['Elastic Security', 'https://www.elastic.co/security'], ['Splunk', 'https://www.splunk.com'], ['Suricata', 'https://suricata.io'],
+    ['Zeek', 'https://zeek.org'], ['Snort', 'https://www.snort.org'], ['Sysmon', 'https://learn.microsoft.com/sysinternals/downloads/sysmon'],
+    ['Sysinternals', 'https://learn.microsoft.com/sysinternals/'], ['Velociraptor', 'https://docs.velociraptor.app'], ['osquery', 'https://www.osquery.io'],
+    ['TheHive', 'https://strangebee.com/thehive/'], ['MISP', 'https://www.misp-project.org'], ['OpenCTI', 'https://filigran.io/solutions/open-cti/'],
+    ['Atomic Red Team', 'https://github.com/redcanaryco/atomic-red-team'], ['Detection Engineering (detection.fyi)', 'https://detection.fyi'],
+    ['LOLDrivers', 'https://www.loldrivers.io'], ['CrowdSec', 'https://www.crowdsec.net'], ['Fail2ban', 'https://github.com/fail2ban/fail2ban'],
+  ],
+  'Forense y respuesta a incidentes': [
+    ['Autopsy', 'https://www.autopsy.com'], ['Volatility', 'https://volatilityfoundation.org'], ['KAPE', 'https://www.kroll.com/en/services/cyber/incident-response-recovery/kroll-artifact-parser-and-extractor-kape'],
+    ['Eric Zimmerman Tools', 'https://ericzimmerman.github.io'], ['Plaso', 'https://github.com/log2timeline/plaso'], ['FTK Imager', 'https://www.exterro.com/ftk-imager'],
+    ['SANS DFIR', 'https://www.sans.org/digital-forensics-incident-response/'], ['DFIR Report', 'https://thedfirreport.com'],
+    ['13Cubed (YouTube)', 'https://www.youtube.com/@13Cubed'], ['NIST SP 800-61 (respuesta a incidentes)', 'https://csrc.nist.gov/pubs/sp/800/61/r3/final'],
+    ['No More Ransom', 'https://www.nomoreransom.org/es/index.html'], ['ID Ransomware', 'https://id-ransomware.malwarehunterteam.com'],
+  ],
+  'Inteligencia de amenazas e infraestructura': [
+    ['Shodan', 'https://www.shodan.io'], ['Censys', 'https://search.censys.io'], ['GreyNoise', 'https://viz.greynoise.io'],
+    ['AbuseIPDB', 'https://www.abuseipdb.com'], ['AlienVault OTX', 'https://otx.alienvault.com'], ['crt.sh (certificados)', 'https://crt.sh'],
+    ['SecurityTrails', 'https://securitytrails.com'], ['DNSDumpster', 'https://dnsdumpster.com'], ['MXToolbox', 'https://mxtoolbox.com'],
+    ['SSL Labs', 'https://www.ssllabs.com/ssltest/'], ['Mozilla Observatory', 'https://developer.mozilla.org/en-US/observatory'],
+    ['Security Headers', 'https://securityheaders.com'], ['BGP.he.net', 'https://bgp.he.net'], ['Talos Intelligence', 'https://talosintelligence.com'],
+    ['Pulsedive', 'https://pulsedive.com'], ['ransomware.live', 'https://www.ransomware.live'],
+  ],
+  'Criptografía': [
+    ['Cryptopals', 'https://cryptopals.com'], ['Crypto 101', 'https://www.crypto101.io'], ['Stanford Crypto I (Coursera)', 'https://www.coursera.org/learn/crypto'],
+    ['Let\'s Encrypt', 'https://letsencrypt.org'], ['Illustrated TLS 1.3', 'https://tls13.xargs.org'], ['age (cifrado de archivos)', 'https://age-encryption.org'],
+    ['GnuPG', 'https://gnupg.org'], ['VeraCrypt', 'https://www.veracrypt.fr'],
+  ],
+  'Seguridad en la nube y contenedores': [
+    ['AWS Security', 'https://aws.amazon.com/security/'], ['Azure Security', 'https://learn.microsoft.com/azure/security/'],
+    ['Google Cloud Security', 'https://cloud.google.com/security'], ['Prowler', 'https://github.com/prowler-cloud/prowler'],
+    ['ScoutSuite', 'https://github.com/nccgroup/ScoutSuite'], ['Trivy', 'https://trivy.dev'], ['Falco', 'https://falco.org'],
+    ['Kubernetes Security Docs', 'https://kubernetes.io/docs/concepts/security/'], ['Hacking the Cloud', 'https://hackingthe.cloud'],
+    ['Checkov', 'https://www.checkov.io'], ['Semgrep', 'https://semgrep.dev'], ['Gitleaks', 'https://github.com/gitleaks/gitleaks'],
+  ],
+  'Privacidad y protección personal': [
+    ['Have I Been Pwned', 'https://haveibeenpwned.com'], ['Privacy Guides', 'https://www.privacyguides.org/es/'], ['EFF', 'https://www.eff.org'],
+    ['Surveillance Self-Defense (EFF)', 'https://ssd.eff.org/es'], ['Bitwarden', 'https://bitwarden.com'], ['KeePassXC', 'https://keepassxc.org'],
+    ['Proton', 'https://proton.me'], ['Signal', 'https://signal.org'], ['Tor Project', 'https://www.torproject.org'],
+    ['2FA Directory', 'https://2fa.directory'], ['Mozilla Monitor', 'https://monitor.mozilla.org'], ['Cover Your Tracks (EFF)', 'https://coveryourtracks.eff.org'],
+    ['Google Security Checkup', 'https://myaccount.google.com/security-checkup'], ['OSI (Oficina de Seguridad del Internauta)', 'https://www.incibe.es/ciudadania'],
+  ],
+  'Noticias y blogs': [
+    ['The Hacker News', 'https://thehackernews.com'], ['BleepingComputer', 'https://www.bleepingcomputer.com'], ['Krebs on Security', 'https://krebsonsecurity.com'],
+    ['Dark Reading', 'https://www.darkreading.com'], ['SecurityWeek', 'https://www.securityweek.com'], ['The Record', 'https://therecord.media'],
+    ['Schneier on Security', 'https://www.schneier.com'], ['Google Project Zero', 'https://googleprojectzero.blogspot.com'],
+    ['Google Threat Intelligence', 'https://cloud.google.com/blog/topics/threat-intelligence'], ['Microsoft Security Blog', 'https://www.microsoft.com/en-us/security/blog/'],
+    ['Cisco Talos Blog', 'https://blog.talosintelligence.com'], ['Unit 42', 'https://unit42.paloaltonetworks.com'], ['Securelist (Kaspersky)', 'https://securelist.com'],
+    ['WeLiveSecurity (ESET) en español', 'https://www.welivesecurity.com/es/'], ['Una al Día (Hispasec)', 'https://unaaldia.hispasec.com'],
+    ['Segu-Info', 'https://blog.segu-info.com.ar'], ['PortSwigger Research', 'https://portswigger.net/research'], ['tl;dr sec', 'https://tldrsec.com'],
+    ['Risky Business (podcast)', 'https://risky.biz'], ['Darknet Diaries (podcast)', 'https://darknetdiaries.com'],
+  ],
+  'YouTube y comunidades': [
+    ['John Hammond', 'https://www.youtube.com/@_JohnHammond'], ['IppSec', 'https://www.youtube.com/@ippsec'], ['LiveOverflow', 'https://www.youtube.com/@LiveOverflow'],
+    ['NetworkChuck', 'https://www.youtube.com/@NetworkChuck'], ['David Bombal', 'https://www.youtube.com/@davidbombal'], ['S4vitar', 'https://www.youtube.com/@s4vitar'],
+    ['Black Hat', 'https://www.youtube.com/@BlackHatOfficialYT'], ['DEF CON', 'https://www.youtube.com/@DEFCONConference'],
+    ['r/netsec', 'https://www.reddit.com/r/netsec/'], ['r/cybersecurity', 'https://www.reddit.com/r/cybersecurity/'], ['r/AskNetsec', 'https://www.reddit.com/r/AskNetsec/'],
+    ['OWASP Chapters', 'https://owasp.org/chapters/'], ['Ekoparty', 'https://ekoparty.org'], ['RootedCON', 'https://rootedcon.com'],
+  ],
+  'Certificaciones': [
+    ['CompTIA Security+', 'https://www.comptia.org/certifications/security'], ['OffSec (OSCP)', 'https://www.offsec.com'],
+    ['ISC2 (CISSP, CC gratis)', 'https://www.isc2.org'], ['ISACA (CISM, CISA)', 'https://www.isaca.org'], ['GIAC (SANS)', 'https://www.giac.org'],
+    ['eLearnSecurity / INE', 'https://ine.com'], ['EC-Council (CEH)', 'https://www.eccouncil.org'], ['TCM Security (PNPT)', 'https://certifications.tcm-sec.com'],
+    ['HTB Certifications', 'https://academy.hackthebox.com/preview/certifications'],
+  ],
+  'Linux y redes': [
+    ['Linux Journey', 'https://linuxjourney.com'], ['The Linux Command Line', 'https://linuxcommand.org'], ['Arch Wiki', 'https://wiki.archlinux.org'],
+    ['Subnet Calculator', 'https://www.subnet-calculator.com'], ['Packet Tracer', 'https://www.netacad.com/cisco-packet-tracer'],
+    ['GNS3', 'https://www.gns3.com'], ['tcpdump', 'https://www.tcpdump.org'], ['Bash scripting cheatsheet', 'https://devhints.io/bash'],
+  ],
+};
+const COLLECTIONS = { general: ['General', PRESET], cyber: ['Ciberseguridad', CYBER] };
+function loadCollection(key) {
+  const [name, data] = COLLECTIONS[key];
+  showBookmarks(Object.entries(data).flatMap(([folder, items]) =>
+    items.map(([title, url]) => ({ title, url, folder }))), `la colección «${name}»`);
+}
+$('bmPreset').onchange = e => loadCollection(e.target.value);
+loadCollection('general');
 
 $('bmAll').onchange = e => $('bmList').querySelectorAll('input').forEach(c => c.checked = e.target.checked && !bookmarks[c.dataset.i].risk);
 
